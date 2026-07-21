@@ -8,7 +8,7 @@
   <title>Bulletin Board</title>
   <link rel="manifest" href="./manifest.webmanifest?v=3">
   <link rel="icon" href="./icons/icon.svg?v=3" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css?v=3">
+  <link rel="stylesheet" href="./styles.css?v=4">
 </head>
 <body>
   <div class="app-shell">
@@ -32,7 +32,7 @@
       <div class="search-results" id="searchResults"></div>
     </div>
 
-    <nav class="main-nav" aria-label="Main navigation"><button class="active" data-page="dashboard" type="button">Dashboard</button><button data-page="calendar" type="button">Calendar</button></nav>
+    <nav class="main-nav" aria-label="Main navigation"><button class="active" data-page="dashboard" type="button">Dashboard</button><button data-page="calendar" type="button">Calendar</button><button data-page="items" type="button">All Items</button></nav>
     <main>
       <section class="dashboard-page" id="dashboardPage">
         <div class="dashboard-hero"><div><span class="eyebrow">GOOD TO SEE YOU</span><h1>Your bulletin board</h1><p id="dashboardDate"></p></div><button class="primary-button dashboard-add" type="button">＋ Add item</button></div>
@@ -68,6 +68,12 @@
         <div class="up-next-list" id="upNextList"></div>
       </section>
       </section>
+      <section class="items-page" id="itemsPage" hidden>
+        <div class="sheet-heading"><div><span class="eyebrow">BULK EDITOR</span><h1>All items</h1><p>Edit your entire board in one place. Changes save automatically.</p></div><div class="sheet-actions"><button class="secondary-button" id="importRowsButton" type="button">Paste rows</button><button class="primary-button" id="addRowButton" type="button">＋ Add row</button></div></div>
+        <div class="sheet-filters"><label class="search-box"><span>⌕</span><input id="sheetSearch" type="search" placeholder="Search all items…"></label><select id="sheetCategory"><option value="all">All categories</option><option value="health">Health</option><option value="academic">Academic</option><option value="personal">Personal</option><option value="finance">Finance</option><option value="dating">Dating</option><option value="family">Friends &amp; Family</option></select><select id="sheetStatus"><option value="all">All statuses</option><option value="planned">Planned</option><option value="progress">In progress</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select><button class="danger-button" id="deleteSelectedButton" type="button" disabled>Delete selected</button></div>
+        <div class="sheet-wrap"><table class="items-table"><thead><tr><th><input id="selectAllRows" type="checkbox" aria-label="Select all visible rows"></th><th>★</th><th>Title</th><th>Category</th><th>Type</th><th>Date</th><th>Time</th><th>Status</th><th>Notes</th><th></th></tr></thead><tbody id="itemsTableBody"></tbody></table></div>
+        <div class="sheet-footer" id="sheetCount"></div>
+      </section>
     </main>
   </div>
 
@@ -82,7 +88,7 @@
 
   <dialog class="item-dialog" id="itemDialog">
     <form method="dialog" id="itemForm">
-      <div class="dialog-header"><div><span class="eyebrow" id="formEyebrow">NEW PIN</span><h2 id="formTitle">Add an item</h2></div><button class="icon-button" value="cancel" type="submit" aria-label="Close">×</button></div>
+      <div class="dialog-header"><div><span class="eyebrow" id="formEyebrow">NEW PIN</span><h2 id="formTitle">Add an item</h2></div><button class="icon-button close-dialog" type="button" aria-label="Close">×</button></div>
       <input type="hidden" id="itemId">
       <div class="field"><label for="itemTitle">Title</label><input id="itemTitle" required maxlength="80" placeholder="What’s happening?"></div>
       <div class="form-row"><div class="field"><label for="itemCategory">Category</label><select id="itemCategory"><option value="health">Health</option><option value="academic">Academic</option><option value="personal">Personal</option><option value="finance">Finance</option><option value="dating">Dating</option><option value="family">Friends &amp; Family</option></select></div><div class="field"><label for="itemType">Type</label><select id="itemType"><option value="appointment">Appointment</option><option value="communication">Communication</option><option value="task">Task</option><option value="reminder">Reminder</option><option value="event">Event</option></select></div></div>
@@ -91,15 +97,16 @@
       <label class="inline-check"><input id="allDay" type="checkbox"> All day</label>
       <div class="field"><label for="itemLocation">Location or link</label><input id="itemLocation" placeholder="Optional"></div>
       <label class="important-check"><input id="itemImportant" type="checkbox"><span>★</span> Mark as important</label>
+      <div class="field"><label for="itemStatus">Status</label><select id="itemStatus"><option value="planned">Planned</option><option value="progress">In progress</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select></div>
       <section class="notes-thread"><div class="notes-heading"><label>Notes</label><button class="text-button" id="addNoteButton" type="button">＋ Add note</button></div><div id="notesList"></div></section>
       <div class="form-row"><div class="field"><label for="repeatRule">Repeat</label><select id="repeatRule"><option value="none">Doesn’t repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="weekdays">Weekdays</option></select></div><div class="field"><label for="reminderMinutes">Notify me</label><select id="reminderMinutes"><option value="none">No notification</option><option value="0">At start time</option><option value="10">10 minutes before</option><option value="30">30 minutes before</option><option value="60">1 hour before</option><option value="1440">1 day before</option></select></div></div>
-      <div class="dialog-actions"><button class="danger-button" id="deleteItemButton" type="button" hidden>Delete</button><span></span><button class="secondary-button" value="cancel" type="submit">Cancel</button><button class="primary-button" id="saveItemButton" type="button">Pin item</button></div>
+      <div class="dialog-actions"><button class="danger-button" id="deleteItemButton" type="button" hidden>Delete</button><span></span><button class="secondary-button close-dialog" type="button">Cancel</button><button class="primary-button" id="saveItemButton" type="button">Pin item</button></div>
     </form>
   </dialog>
 
   <dialog class="account-dialog" id="accountDialog">
     <form method="dialog" id="accountForm">
-      <div class="dialog-header"><div><span class="eyebrow">YOUR CALENDAR</span><h2>Sign in to sync</h2></div><button class="icon-button" value="cancel" type="submit" aria-label="Close">×</button></div>
+      <div class="dialog-header"><div><span class="eyebrow">YOUR CALENDAR</span><h2>Sign in to sync</h2></div><button class="icon-button close-dialog" type="button" aria-label="Close">×</button></div>
       <p class="muted">Your calendar currently saves on this device. Connect Supabase to enable secure syncing across devices.</p>
       <div class="field"><label for="email">Email</label><input id="email" type="email" autocomplete="email" placeholder="you@example.com"></div>
       <div class="field"><label for="password">Password</label><input id="password" type="password" autocomplete="current-password" minlength="8"></div>
@@ -108,9 +115,18 @@
     </form>
   </dialog>
 
+  <dialog class="import-dialog" id="importDialog">
+    <form method="dialog">
+      <div class="dialog-header"><div><span class="eyebrow">BULK IMPORT</span><h2>Paste rows</h2></div><button class="icon-button close-dialog" type="button" aria-label="Close">×</button></div>
+      <p class="muted">Paste rows from Excel or Google Sheets in this order: Title, Category, Type, Date, Time, Status, Important, Note.</p>
+      <textarea id="importText" class="import-text" rows="10" placeholder="Dentist appointment&#9;Health&#9;Appointment&#9;2026-09-14&#9;13:00&#9;Planned&#9;Yes&#9;Arrive at 12:45"></textarea>
+      <div class="dialog-actions"><button class="secondary-button close-dialog" type="button">Cancel</button><button class="primary-button" id="processImportButton" type="button">Import rows</button></div>
+    </form>
+  </dialog>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js?v=3"></script>
-  <script src="./app.js?v=3"></script>
+  <script src="./app.js?v=4"></script>
 </body>
 </html>
