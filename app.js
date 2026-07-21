@@ -132,4 +132,4 @@ function bind(){
   document.addEventListener("click",event=>{if(!event.target.closest("#searchPanel")&&!event.target.closest(".search-toggle"))$("#searchPanel").hidden=true;});document.addEventListener("keydown",event=>{if(event.key==="Escape"){closeDay();$("#searchPanel").hidden=true;}if(event.key==="/"&&!['INPUT','TEXTAREA'].includes(document.activeElement.tagName)){event.preventDefault();$("#searchPanel").hidden=false;$("#searchInput").focus();search();}});showPage("dashboard");
 }
 
-bind();render();initSupabase();if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js"));
+bind();render();initSupabase();if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=3"));
