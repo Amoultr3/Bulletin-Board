@@ -6,14 +6,16 @@ const parseDate = value => { const [y,m,d] = value.split("-").map(Number); retur
 const addDays = (date, amount) => { const copy = new Date(date); copy.setDate(copy.getDate()+amount); return copy; };
 const escapeHTML = value => String(value ?? "").replace(/[&<>'"]/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[char]));
 
+const CATEGORIES = {health:"Health",academic:"Academic",personal:"Personal",finance:"Finance",dating:"Dating",family:"Friends & Family"};
+const TYPES = {appointment:"Appointment",communication:"Communication",task:"Task",reminder:"Reminder",event:"Event"};
 const demoItems = [
-  {id:crypto.randomUUID(),title:"Dentist appointment",type:"appointment",date:fmtDate(new Date()),start:"14:00",end:"16:00",location:"Center City",notes:"Bring insurance card",repeat:"none",reminder:"60",completed:false},
-  {id:crypto.randomUUID(),title:"Anatomy study block",type:"academic",date:fmtDate(addDays(new Date(),1)),start:"08:00",end:"10:00",location:"",notes:"Cardiovascular system",repeat:"none",reminder:"30",completed:false},
-  {id:crypto.randomUUID(),title:"Grocery shopping",type:"task",date:fmtDate(addDays(new Date(),2)),start:"19:00",end:"",location:"",notes:"",repeat:"none",reminder:"none",completed:false}
+  {id:crypto.randomUUID(),title:"Dentist appointment",category:"health",type:"appointment",date:fmtDate(new Date()),start:"14:00",end:"16:00",location:"Center City",notes:[{id:crypto.randomUUID(),text:"Bring insurance card",createdAt:new Date().toISOString()}],important:true,repeat:"none",reminder:"60",completed:false},
+  {id:crypto.randomUUID(),title:"Anatomy study block",category:"academic",type:"task",date:fmtDate(addDays(new Date(),1)),start:"08:00",end:"10:00",location:"",notes:[{id:crypto.randomUUID(),text:"Review the cardiovascular system",createdAt:new Date().toISOString()}],important:false,repeat:"none",reminder:"30",completed:false},
+  {id:crypto.randomUUID(),title:"Grocery shopping",category:"personal",type:"task",date:fmtDate(addDays(new Date(),2)),start:"19:00",end:"",location:"",notes:[],important:false,repeat:"none",reminder:"none",completed:false}
 ];
 
 const state = {
-  view:"week", cursor:new Date(), selectedDate:fmtDate(new Date()),
+  page:"dashboard", view:"week", cursor:new Date(), selectedDate:fmtDate(new Date()),
   items:JSON.parse(localStorage.getItem(STORAGE.items) || "null") || demoItems,
   reminders:JSON.parse(localStorage.getItem(STORAGE.reminders) || "{}"),
   supabase:null, user:null
@@ -30,9 +32,12 @@ function recurrenceMatches(item,dateString){
   if(item.repeat==="weekdays")return date.getDay()>0&&date.getDay()<6;
   if(item.repeat==="monthly")return date.getDate()===start.getDate();return false;
 }
-function itemsForDate(dateString){return state.items.filter(item=>recurrenceMatches(item,dateString)).sort((a,b)=>(a.start||"99:99").localeCompare(b.start||"99:99"));}
+function normalizeItem(item){return {...item,category:item.category||(item.type==="academic"?"academic":"personal"),type:TYPES[item.type]?item.type:"event",notes:Array.isArray(item.notes)?item.notes:(item.notes?[{id:crypto.randomUUID(),text:item.notes,createdAt:new Date().toISOString()}]:[]),important:Boolean(item.important)};}
+state.items=state.items.map(normalizeItem);
+function itemsForDate(dateString){return state.items.filter(item=>recurrenceMatches(item,dateString)).sort((a,b)=>Number(b.important)-Number(a.important)||(a.start||"99:99").localeCompare(b.start||"99:99"));}
 
 function render(){
+  renderDashboard();
   const board=$("#calendarBoard");board.className=`board ${state.view}`;board.innerHTML="";
   let dates=[];
   if(state.view==="week"){const start=mondayOf(state.cursor);dates=Array.from({length:7},(_,i)=>addDays(start,i));$("#periodTitle").textContent=`${start.toLocaleDateString([], {month:"long",day:"numeric"})} – ${addDays(start,6).toLocaleDateString([], {month:"long",day:"numeric",year:"numeric"})}`;}
@@ -51,45 +56,56 @@ function dayCell(date){
   cell.addEventListener("dragover",event=>event.preventDefault());cell.addEventListener("drop",event=>{event.preventDefault();const id=event.dataTransfer.getData("text/plain"),item=state.items.find(x=>x.id===id);if(item){item.date=dateString;saveAndSync();render();toast("Item moved");}});return cell;
 }
 function pin(item,occurrenceDate){
-  const button=document.createElement("button");button.type="button";button.className=`pin ${item.type}${item.completed?" completed":""}`;button.draggable=true;button.innerHTML=`<strong>${escapeHTML(item.title)}</strong><small>${item.start?readableTime(item.start):"All day"}${item.location?` · ${escapeHTML(item.location)}`:""}</small>`;
+  const button=document.createElement("button");button.type="button";button.className=`pin ${item.category}${item.completed?" completed":""}${item.important?" important":""}`;button.draggable=true;button.innerHTML=`<strong>${item.important?'<span class="pin-star">★</span>':""}${escapeHTML(item.title)}</strong><small>${TYPES[item.type]} · ${item.start?readableTime(item.start):"All day"}${item.location?` · ${escapeHTML(item.location)}`:""}</small>`;
   button.addEventListener("dragstart",event=>event.dataTransfer.setData("text/plain",item.id));button.addEventListener("click",event=>{event.stopPropagation();openItemForm(item,occurrenceDate)});return button;
 }
 function renderUpNext(){
   const list=$("#upNextList"),today=fmtDate(new Date());const upcoming=state.items.filter(item=>!item.completed&&item.date>=today).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start)).slice(0,3);
-  list.innerHTML=upcoming.length?upcoming.map(item=>`<article class="up-card"><span class="up-dot" style="background:var(--${item.type})"></span><div><strong>${escapeHTML(item.title)}</strong><small>${longDate(item.date)} · ${readableTime(item.start)}</small></div></article>`).join(""):`<div class="empty-state">Nothing upcoming. Enjoy the open space.</div>`;
+  list.innerHTML=upcoming.length?upcoming.map(item=>`<article class="up-card"><span class="up-dot" style="background:var(--${item.category})"></span><div><strong>${item.important?"★ ":""}${escapeHTML(item.title)}</strong><small>${longDate(item.date)} · ${readableTime(item.start)}</small></div></article>`).join(""):`<div class="empty-state">Nothing upcoming. Enjoy the open space.</div>`;
+}
+
+function dashboardPin(item){return `<button class="dash-pin" type="button" data-dash-item="${item.id}"><span class="category-dot" style="background:var(--${item.category})"></span><span><strong>${item.important?'<span class="star">★</span> ':""}${escapeHTML(item.title)}</strong><small>${CATEGORIES[item.category]} · ${TYPES[item.type]} · ${longDate(item.date)}${item.start?` at ${readableTime(item.start)}`:""}</small></span></button>`;}
+function renderDashboard(){
+  $("#dashboardDate").textContent=new Date().toLocaleDateString([], {weekday:"long",month:"long",day:"numeric",year:"numeric"});const today=fmtDate(new Date());
+  const todayItems=itemsForDate(today),important=state.items.filter(x=>x.important&&!x.completed).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,5),upcoming=state.items.filter(x=>x.date>today&&!x.completed).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,5),tasks=state.items.filter(x=>x.type==="task"&&!x.completed).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,5);
+  const fill=(selector,items,message)=>$(selector).innerHTML=items.length?items.map(dashboardPin).join(""):`<div class="empty-state">${message}</div>`;fill("#todayPins",todayItems,"Nothing pinned for today.");fill("#importantPins",important,"No important items.");fill("#upcomingPins",upcoming,"Nothing upcoming.");fill("#taskPins",tasks,"No open tasks.");
+  $("#categorySummary").innerHTML=Object.entries(CATEGORIES).map(([key,label])=>`<div class="category-chip" style="background:var(--${key})"><strong>${state.items.filter(x=>x.category===key&&!x.completed).length}</strong>${label}</div>`).join("");
+  $$('[data-dash-item]').forEach(button=>button.addEventListener("click",()=>{const item=state.items.find(x=>x.id===button.dataset.dashItem);openItemForm(item,item.date);}));
 }
 function openDay(dateString){
   state.selectedDate=dateString;$("#drawerTitle").textContent=longDate(dateString);$("#dailyReminder").value=state.reminders[dateString]||"";renderDrawerItems();$("#scrim").hidden=false;$("#dayDrawer").classList.add("open");$("#dayDrawer").setAttribute("aria-hidden","false");
 }
 function closeDay(){$("#dayDrawer").classList.remove("open");$("#dayDrawer").setAttribute("aria-hidden","true");$("#scrim").hidden=true;}
 function renderDrawerItems(){
-  const list=$("#drawerItems"),items=itemsForDate(state.selectedDate);list.innerHTML=items.length?items.map(item=>`<article class="drawer-item ${item.type}"><header><button type="button" data-edit="${item.id}"><strong>${escapeHTML(item.title)}</strong></button><small>${readableTime(item.start)}</small></header>${item.location?`<p>⌖ ${escapeHTML(item.location)}</p>`:""}${item.notes?`<p>${escapeHTML(item.notes)}</p>`:""}${item.type==="task"?`<label class="task-check"><input type="checkbox" data-complete="${item.id}" ${item.completed?"checked":""}> ${item.completed?"Completed":"Mark complete"}</label>`:""}</article>`).join(""):`<div class="empty-state">No pins for this day yet.</div>`;
+  const list=$("#drawerItems"),items=itemsForDate(state.selectedDate);list.innerHTML=items.length?items.map(item=>`<article class="drawer-item ${item.category}"><header><button type="button" data-edit="${item.id}"><strong>${item.important?"★ ":""}${escapeHTML(item.title)}</strong><small>${CATEGORIES[item.category]} · ${TYPES[item.type]}</small></button><small>${readableTime(item.start)}</small></header>${item.location?`<p>⌖ ${escapeHTML(item.location)}</p>`:""}${item.notes.map(note=>`<p class="drawer-note">${escapeHTML(note.text)}</p>`).join("")}${item.type==="task"?`<label class="task-check"><input type="checkbox" data-complete="${item.id}" ${item.completed?"checked":""}> ${item.completed?"Completed":"Mark complete"}</label>`:""}</article>`).join(""):`<div class="empty-state">No pins for this day yet.</div>`;
   $$('[data-edit]').forEach(button=>button.addEventListener("click",()=>openItemForm(state.items.find(x=>x.id===button.dataset.edit),state.selectedDate)));
   $$('[data-complete]').forEach(box=>box.addEventListener("change",()=>{const item=state.items.find(x=>x.id===box.dataset.complete);item.completed=box.checked;saveAndSync();renderDrawerItems();render();}));
 }
 function openItemForm(item,dateString=state.selectedDate){
-  $("#itemForm").reset();$("#itemId").value=item?.id||"";$("#itemTitle").value=item?.title||"";$("#itemType").value=item?.type||"personal";$("#itemDate").value=dateString||item?.date||fmtDate(new Date());$("#startTime").value=item?.start||"";$("#endTime").value=item?.end||"";$("#itemLocation").value=item?.location||"";$("#itemNotes").value=item?.notes||"";$("#repeatRule").value=item?.repeat||"none";$("#reminderMinutes").value=item?.reminder||"none";$("#allDay").checked=!item?.start;$("#deleteItemButton").hidden=!item;$("#formEyebrow").textContent=item?"EDIT PIN":"NEW PIN";$("#formTitle").textContent=item?"Edit item":"Add an item";toggleTimeFields();$("#itemDialog").showModal();
+  $("#itemForm").reset();$("#itemId").value=item?.id||"";$("#itemTitle").value=item?.title||"";$("#itemCategory").value=item?.category||"personal";$("#itemType").value=item?.type||"event";$("#itemDate").value=item?.date||dateString||fmtDate(new Date());$("#startTime").value=item?.start||"";$("#endTime").value=item?.end||"";$("#itemLocation").value=item?.location||"";$("#itemImportant").checked=Boolean(item?.important);$("#repeatRule").value=item?.repeat||"none";$("#reminderMinutes").value=item?.reminder||"none";$("#allDay").checked=!item?.start;$("#deleteItemButton").hidden=!item;$("#formEyebrow").textContent=item?"EDIT PIN":"NEW PIN";$("#formTitle").textContent=item?"Edit item":"Add an item";renderNoteEditors(item?.notes||[]);toggleTimeFields();$("#itemDialog").showModal();
 }
+function renderNoteEditors(notes){$("#notesList").innerHTML=notes.map(note=>`<div class="note-row" data-note-id="${note.id}"><textarea rows="2" placeholder="Write a note…">${escapeHTML(note.text)}</textarea><button class="remove-note" type="button" aria-label="Remove note">×</button><span class="note-stamp">${new Date(note.createdAt).toLocaleString()}</span></div>`).join("");$$('.remove-note').forEach(button=>button.addEventListener("click",()=>button.closest(".note-row").remove()));}
+function addNoteEditor(){const row=document.createElement("div");row.className="note-row";row.dataset.noteId=crypto.randomUUID();row.innerHTML=`<textarea rows="2" placeholder="Write a note…"></textarea><button class="remove-note" type="button" aria-label="Remove note">×</button><span class="note-stamp">New note</span>`;row.querySelector("button").addEventListener("click",()=>row.remove());$("#notesList").append(row);row.querySelector("textarea").focus();}
 function saveItem(){
-  if(!$("#itemForm").reportValidity())return;const id=$("#itemId").value||crypto.randomUUID();const item={id,title:$("#itemTitle").value.trim(),type:$("#itemType").value,date:$("#itemDate").value,start:$("#allDay").checked?"":$("#startTime").value,end:$("#allDay").checked?"":$("#endTime").value,location:$("#itemLocation").value.trim(),notes:$("#itemNotes").value.trim(),repeat:$("#repeatRule").value,reminder:$("#reminderMinutes").value,completed:state.items.find(x=>x.id===id)?.completed||false};
+  if(!$("#itemForm").reportValidity())return;const id=$("#itemId").value||crypto.randomUUID();const notes=$$(".note-row").map(row=>({id:row.dataset.noteId,text:row.querySelector("textarea").value.trim(),createdAt:state.items.find(x=>x.id===id)?.notes.find(n=>n.id===row.dataset.noteId)?.createdAt||new Date().toISOString()})).filter(note=>note.text);const item={id,title:$("#itemTitle").value.trim(),category:$("#itemCategory").value,type:$("#itemType").value,date:$("#itemDate").value,start:$("#allDay").checked?"":$("#startTime").value,end:$("#allDay").checked?"":$("#endTime").value,location:$("#itemLocation").value.trim(),notes,important:$("#itemImportant").checked,repeat:$("#repeatRule").value,reminder:$("#reminderMinutes").value,completed:state.items.find(x=>x.id===id)?.completed||false};
   const index=state.items.findIndex(x=>x.id===id);if(index>=0)state.items[index]=item;else state.items.push(item);saveAndSync();scheduleLocalNotification(item);$("#itemDialog").close();render();if($("#dayDrawer").classList.contains("open"))renderDrawerItems();toast(index>=0?"Pin updated":"Item pinned");
 }
 function deleteItem(){const id=$("#itemId").value;if(!id)return;state.items=state.items.filter(item=>item.id!==id);saveAndSync();$("#itemDialog").close();render();if($("#dayDrawer").classList.contains("open"))renderDrawerItems();toast("Item deleted");}
 function toggleTimeFields(){const disabled=$("#allDay").checked;$("#startTime").disabled=disabled;$("#endTime").disabled=disabled;}
 
 function search(){
-  const query=$("#searchInput").value.trim().toLowerCase(),type=$("#searchType").value,incomplete=$("#incompleteOnly").checked;let results=state.items.filter(item=>(type==="all"||item.type===type)&&(!incomplete||(item.type==="task"&&!item.completed))&&(!query||[item.title,item.notes,item.location,item.date,item.type].join(" ").toLowerCase().includes(query))).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,30);
-  $("#searchResults").innerHTML=results.map(item=>`<button class="search-result" type="button" data-result="${item.id}"><span><strong>${escapeHTML(item.title)}</strong><br><small>${escapeHTML(item.type)}</small></span><small>${longDate(item.date)}</small></button>`).join("")||(query?`<div class="empty-state">No matching pins found.</div>`:"");
+  const query=$("#searchInput").value.trim().toLowerCase(),category=$("#searchCategory").value,type=$("#searchType").value,incomplete=$("#incompleteOnly").checked;let results=state.items.filter(item=>(category==="all"||item.category===category)&&(type==="all"||item.type===type)&&(!incomplete||(item.type==="task"&&!item.completed))&&(!query||[item.title,item.notes.map(n=>n.text).join(" "),item.location,item.date,item.type,item.category,item.important?"important":""].join(" ").toLowerCase().includes(query))).sort((a,b)=>Number(b.important)-Number(a.important)||a.date.localeCompare(b.date)).slice(0,30);
+  $("#searchResults").innerHTML=results.map(item=>`<button class="search-result" type="button" data-result="${item.id}"><span><strong>${item.important?"★ ":""}${escapeHTML(item.title)}</strong><br><small>${CATEGORIES[item.category]} · ${TYPES[item.type]}</small></span><small>${longDate(item.date)}</small></button>`).join("")||(query?`<div class="empty-state">No matching pins found.</div>`:"");
   $$('[data-result]').forEach(button=>button.addEventListener("click",()=>{const item=state.items.find(x=>x.id===button.dataset.result);openItemForm(item,item.date);$("#searchPanel").hidden=true;}));
 }
 function toast(message){const node=$("#toast");node.textContent=message;node.classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>node.classList.remove("show"),2200);}
 async function scheduleLocalNotification(item){
   if(item.reminder==="none"||!item.start||!("Notification" in window))return;if(Notification.permission==="default")await Notification.requestPermission();if(Notification.permission!=="granted")return;
-  const when=new Date(`${item.date}T${item.start}:00`).getTime()-Number(item.reminder)*60000,delay=when-Date.now();if(delay>0&&delay<2147483647)setTimeout(()=>new Notification(item.title,{body:item.notes||`${readableTime(item.start)}${item.location?` · ${item.location}`:""}`,icon:"./icons/icon.svg"}),delay);
+  const when=new Date(`${item.date}T${item.start}:00`).getTime()-Number(item.reminder)*60000,delay=when-Date.now();if(delay>0&&delay<2147483647)setTimeout(()=>new Notification(item.title,{body:item.notes[0]?.text||`${readableTime(item.start)}${item.location?` · ${item.location}`:""}`,icon:"./icons/icon.svg"}),delay);
 }
 
 async function initSupabase(){
-  const config=window.CALENDAR_CONFIG||{};if(!config.supabaseUrl||!config.supabaseAnonKey||!window.supabase)return;
+  const config=window.BULLETIN_BOARD_CONFIG||{};if(!config.supabaseUrl||!config.supabaseAnonKey||!window.supabase)return;
   state.supabase=window.supabase.createClient(config.supabaseUrl,config.supabaseAnonKey);const {data}=await state.supabase.auth.getSession();state.user=data.session?.user||null;updateAccountUI();if(state.user)await loadCloud();state.supabase.auth.onAuthStateChange(async(_,session)=>{state.user=session?.user||null;updateAccountUI();if(state.user)await loadCloud();});
 }
 async function sign(mode){
@@ -102,16 +118,18 @@ async function syncCloud(){if(!state.supabase||!state.user)return;await state.su
 function saveAndSync(){saveLocal();syncCloud();}
 
 function bind(){
+  function showPage(page){state.page=page;$("#dashboardPage").hidden=page!=="dashboard";$("#calendarPage").hidden=page!=="calendar";$$('[data-page]').forEach(button=>button.classList.toggle("active",button.dataset.page===page));if(page==="calendar")render();else renderDashboard();}
+  $$('[data-page]').forEach(button=>button.addEventListener("click",()=>showPage(button.dataset.page)));$$('[data-go-calendar]').forEach(button=>button.addEventListener("click",()=>showPage("calendar")));$(".dashboard-add").addEventListener("click",()=>openItemForm(null,fmtDate(new Date())));
   $$(".view-switcher button").forEach(button=>button.addEventListener("click",()=>{state.view=button.dataset.view;render();}));
   $("#previousButton").addEventListener("click",()=>{state.cursor=state.view==="week"?addDays(state.cursor,-7):new Date(state.cursor.getFullYear(),state.cursor.getMonth()-1,1);render();});
   $("#nextButton").addEventListener("click",()=>{state.cursor=state.view==="week"?addDays(state.cursor,7):new Date(state.cursor.getFullYear(),state.cursor.getMonth()+1,1);render();});
   $("#todayButton").addEventListener("click",()=>{state.cursor=new Date();render();});$("#addItemButton").addEventListener("click",()=>openItemForm(null,fmtDate(new Date())));$("#drawerAddButton").addEventListener("click",()=>openItemForm(null,state.selectedDate));
-  $("#scrim").addEventListener("click",closeDay);$("[data-close-drawer]").addEventListener("click",closeDay);$("#saveItemButton").addEventListener("click",saveItem);$("#deleteItemButton").addEventListener("click",deleteItem);$("#allDay").addEventListener("change",toggleTimeFields);
+  $("#scrim").addEventListener("click",closeDay);$("[data-close-drawer]").addEventListener("click",closeDay);$("#saveItemButton").addEventListener("click",saveItem);$("#deleteItemButton").addEventListener("click",deleteItem);$("#allDay").addEventListener("change",toggleTimeFields);$("#addNoteButton").addEventListener("click",addNoteEditor);
+  $$("dialog").forEach(dialog=>{dialog.querySelectorAll('[value="cancel"]').forEach(button=>button.addEventListener("click",event=>{event.preventDefault();dialog.close();}));dialog.addEventListener("click",event=>{if(event.target===dialog)dialog.close();});});
   $("#dailyReminder").addEventListener("input",()=>{state.reminders[state.selectedDate]=$("#dailyReminder").value;saveAndSync();});
-  $(".search-toggle").addEventListener("click",()=>{$("#searchPanel").hidden=!$("#searchPanel").hidden;if(!$("#searchPanel").hidden){$("#searchInput").focus();search();}});["#searchInput","#searchType","#incompleteOnly"].forEach(selector=>$(selector).addEventListener("input",search));
-  $("#viewTasksButton").addEventListener("click",()=>{$("#searchPanel").hidden=false;$("#searchType").value="task";$("#incompleteOnly").checked=true;search();});
+  $(".search-toggle").addEventListener("click",()=>{$("#searchPanel").hidden=!$("#searchPanel").hidden;if(!$("#searchPanel").hidden){$("#searchInput").focus();search();}});["#searchInput","#searchCategory","#searchType","#incompleteOnly"].forEach(selector=>$(selector).addEventListener("input",search));
   $("#accountButton").addEventListener("click",()=>$("#accountDialog").showModal());$("#signInButton").addEventListener("click",()=>sign("in"));$("#signUpButton").addEventListener("click",()=>sign("up"));
-  document.addEventListener("keydown",event=>{if(event.key==="Escape")closeDay();if(event.key==="/"&&!['INPUT','TEXTAREA'].includes(document.activeElement.tagName)){event.preventDefault();$("#searchPanel").hidden=false;$("#searchInput").focus();search();}});
+  document.addEventListener("click",event=>{if(!event.target.closest("#searchPanel")&&!event.target.closest(".search-toggle"))$("#searchPanel").hidden=true;});document.addEventListener("keydown",event=>{if(event.key==="Escape"){closeDay();$("#searchPanel").hidden=true;}if(event.key==="/"&&!['INPUT','TEXTAREA'].includes(document.activeElement.tagName)){event.preventDefault();$("#searchPanel").hidden=false;$("#searchInput").focus();search();}});showPage("dashboard");
 }
 
 bind();render();initSupabase();if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js"));

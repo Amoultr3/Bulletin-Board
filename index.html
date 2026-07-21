@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f7f2e8">
   <meta name="description" content="A calm bulletin-board calendar for events, tasks, appointments, and school.">
-  <title>Calendar</title>
+  <title>Bulletin Board</title>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./styles.css">
@@ -13,9 +13,9 @@
 <body>
   <div class="app-shell">
     <header class="topbar">
-      <div class="brand" aria-label="Calendar home">
+      <div class="brand" aria-label="Bulletin Board home">
         <span class="brand-pin" aria-hidden="true"></span>
-        <div><strong>Calendar</strong><small>Your week, pinned in place.</small></div>
+        <div><strong>Bulletin Board</strong><small>Your life, pinned in place.</small></div>
       </div>
       <div class="header-actions">
         <button class="icon-button search-toggle" type="button" aria-label="Search" title="Search">⌕</button>
@@ -26,12 +26,26 @@
 
     <div class="search-panel" id="searchPanel" hidden>
       <label class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="Search titles, notes, locations, and dates…" autocomplete="off"></label>
-      <select id="searchType" aria-label="Filter search by type"><option value="all">All types</option><option value="personal">Personal</option><option value="appointment">Appointments</option><option value="task">Tasks</option><option value="academic">Academic</option></select>
+      <select id="searchCategory" aria-label="Filter by category"><option value="all">All categories</option><option value="health">Health</option><option value="academic">Academic</option><option value="personal">Personal</option><option value="finance">Finance</option><option value="dating">Dating</option><option value="family">Friends &amp; Family</option></select>
+      <select id="searchType" aria-label="Filter by type"><option value="all">All types</option><option value="appointment">Appointments</option><option value="communication">Communication</option><option value="task">Tasks</option><option value="reminder">Reminders</option><option value="event">Events</option></select>
       <label class="check-filter"><input id="incompleteOnly" type="checkbox"> Open tasks only</label>
       <div class="search-results" id="searchResults"></div>
     </div>
 
+    <nav class="main-nav" aria-label="Main navigation"><button class="active" data-page="dashboard" type="button">Dashboard</button><button data-page="calendar" type="button">Calendar</button></nav>
     <main>
+      <section class="dashboard-page" id="dashboardPage">
+        <div class="dashboard-hero"><div><span class="eyebrow">GOOD TO SEE YOU</span><h1>Your bulletin board</h1><p id="dashboardDate"></p></div><button class="primary-button dashboard-add" type="button">＋ Add item</button></div>
+        <div class="dashboard-grid">
+          <article class="dash-card today-card"><header><div><span class="eyebrow">TODAY</span><h2>Today’s pins</h2></div><button class="text-button" data-go-calendar type="button">Open calendar →</button></header><div id="todayPins"></div></article>
+          <article class="dash-card important-card"><header><div><span class="eyebrow">PRIORITY</span><h2>Important</h2></div><span class="dash-icon">★</span></header><div id="importantPins"></div></article>
+          <article class="dash-card"><header><div><span class="eyebrow">COMING UP</span><h2>Upcoming</h2></div></header><div id="upcomingPins"></div></article>
+          <article class="dash-card"><header><div><span class="eyebrow">NEEDS ATTENTION</span><h2>Open tasks</h2></div></header><div id="taskPins"></div></article>
+          <article class="dash-card category-card"><header><div><span class="eyebrow">BALANCE</span><h2>Your categories</h2></div></header><div class="category-summary" id="categorySummary"></div></article>
+        </div>
+      </section>
+
+      <section class="calendar-page" id="calendarPage" hidden>
       <section class="calendar-toolbar">
         <div class="date-navigation">
           <button class="icon-button" id="previousButton" type="button" aria-label="Previous period">‹</button>
@@ -50,8 +64,9 @@
       </section>
 
       <section class="up-next" aria-labelledby="upNextTitle">
-        <div class="section-heading"><div><span class="eyebrow">FOCUS</span><h2 id="upNextTitle">Up next</h2></div><button id="viewTasksButton" class="text-button" type="button">View open tasks →</button></div>
+        <div class="section-heading"><div><span class="eyebrow">FOCUS</span><h2 id="upNextTitle">Up next</h2></div></div>
         <div class="up-next-list" id="upNextList"></div>
+      </section>
       </section>
     </main>
   </div>
@@ -70,11 +85,13 @@
       <div class="dialog-header"><div><span class="eyebrow" id="formEyebrow">NEW PIN</span><h2 id="formTitle">Add an item</h2></div><button class="icon-button" value="cancel" type="submit" aria-label="Close">×</button></div>
       <input type="hidden" id="itemId">
       <div class="field"><label for="itemTitle">Title</label><input id="itemTitle" required maxlength="80" placeholder="What’s happening?"></div>
-      <div class="form-row"><div class="field"><label for="itemType">Type</label><select id="itemType"><option value="personal">Personal</option><option value="appointment">Appointment</option><option value="task">Task</option><option value="academic">Academic</option></select></div><div class="field"><label for="itemDate">Date</label><input id="itemDate" type="date" required></div></div>
+      <div class="form-row"><div class="field"><label for="itemCategory">Category</label><select id="itemCategory"><option value="health">Health</option><option value="academic">Academic</option><option value="personal">Personal</option><option value="finance">Finance</option><option value="dating">Dating</option><option value="family">Friends &amp; Family</option></select></div><div class="field"><label for="itemType">Type</label><select id="itemType"><option value="appointment">Appointment</option><option value="communication">Communication</option><option value="task">Task</option><option value="reminder">Reminder</option><option value="event">Event</option></select></div></div>
+      <div class="field"><label for="itemDate">Date</label><input id="itemDate" type="date" required></div>
       <div class="form-row"><div class="field"><label for="startTime">Start</label><input id="startTime" type="time"></div><div class="field"><label for="endTime">End</label><input id="endTime" type="time"></div></div>
       <label class="inline-check"><input id="allDay" type="checkbox"> All day</label>
       <div class="field"><label for="itemLocation">Location or link</label><input id="itemLocation" placeholder="Optional"></div>
-      <div class="field"><label for="itemNotes">Notes</label><textarea id="itemNotes" rows="3" placeholder="Add details…"></textarea></div>
+      <label class="important-check"><input id="itemImportant" type="checkbox"><span>★</span> Mark as important</label>
+      <section class="notes-thread"><div class="notes-heading"><label>Notes</label><button class="text-button" id="addNoteButton" type="button">＋ Add note</button></div><div id="notesList"></div></section>
       <div class="form-row"><div class="field"><label for="repeatRule">Repeat</label><select id="repeatRule"><option value="none">Doesn’t repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="weekdays">Weekdays</option></select></div><div class="field"><label for="reminderMinutes">Notify me</label><select id="reminderMinutes"><option value="none">No notification</option><option value="0">At start time</option><option value="10">10 minutes before</option><option value="30">30 minutes before</option><option value="60">1 hour before</option><option value="1440">1 day before</option></select></div></div>
       <div class="dialog-actions"><button class="danger-button" id="deleteItemButton" type="button" hidden>Delete</button><span></span><button class="secondary-button" value="cancel" type="submit">Cancel</button><button class="primary-button" id="saveItemButton" type="button">Pin item</button></div>
     </form>

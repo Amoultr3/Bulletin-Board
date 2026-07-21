@@ -1,6 +1,6 @@
-# Calendar
+# Bulletin Board
 
-An installable bulletin-board calendar with month and week views, pastel event categories, tasks, recurrence, reminders, search, drag-and-drop, offline access, and optional Supabase account syncing.
+An installable life dashboard and bulletin-board calendar with category colors, item types, note threads, importance stars, month and week views, tasks, recurrence, reminders, search, drag-and-drop, offline access, and optional Supabase account syncing.
 
 ## Use locally
 

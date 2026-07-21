@@ -1,4 +1,4 @@
-window.CALENDAR_CONFIG = {
+window.BULLETIN_BOARD_CONFIG = {
   supabaseUrl: "",
   supabaseAnonKey: "",
   vapidPublicKey: ""

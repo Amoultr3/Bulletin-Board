@@ -1,6 +1,6 @@
 {
-  "name": "Calendar",
-  "short_name": "Calendar",
+  "name": "Bulletin Board",
+  "short_name": "Bulletin",
   "description": "A calm bulletin-board calendar for your life and studies.",
   "start_url": "./",
   "scope": "./",
